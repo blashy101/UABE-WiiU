@@ -473,13 +473,13 @@ ASSETSTOOLS_API bool AssetBundleHeader03::Write(IAssetsWriter *pWriter, QWORD &c
 	curFilePos += 4;
 
 	curStrLen = strlen(this->minPlayerVersion)+1;
-	curFilePos += curStrLen;
 	if (!pWriter->Write(-1, curStrLen, &this->minPlayerVersion))
 		goto __goto_writeerror;
 	curFilePos += curStrLen;
 	curStrLen = strlen(this->fileEngineVersion)+1;
 	if (!pWriter->Write(-1, curStrLen, &this->fileEngineVersion))
 		goto __goto_writeerror;
+	curFilePos += curStrLen;
 
 	dwTmp = SwapEndians(this->minimumStreamedBytes);
 	if (!pWriter->Write(-1, 4, &dwTmp))
@@ -651,6 +651,8 @@ ASSETSTOOLS_API bool AssetsList::Write(IAssetsWriter *pWriter, QWORD &curFilePos
 			goto __goto_writeerror;
 		curFilePos += 8;
 	}
+
+	return true;
 
 	__goto_writeerror:
 	if (errorLogger) errorLogger("AssetsList : A file write error occured!");
