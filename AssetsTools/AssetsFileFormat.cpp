@@ -1230,7 +1230,10 @@ ASSETSTOOLS_API QWORD AssetsFile::Write(IAssetsWriter *pWriter, QWORD filePos, A
 
 	
 	this->pReader->Read(this->AssetTablePos, 4, &fileListLen);
-	struct exAssetFileInfo
+if (this->header.endianness)
+	SwapEndians_(fileListLen);
+
+struct exAssetFileInfo
 	{
 		AssetFileInfo finf;
 		uint32_t actualFileType;
