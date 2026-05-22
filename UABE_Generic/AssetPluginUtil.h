@@ -8,6 +8,11 @@
 #include <unordered_map>
 #include <exception>
 #include <functional>
+#include <memory>
+#include <optional>
+#include <shared_mutex>
+#include <utility>
+#include <vector>
 
 struct AssetUtilDesc
 {
