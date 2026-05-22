@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "Win32TaskStatusTracker.h"
 #include <array>
+#include <format>
 #include "resource.h"
 #include <windowsx.h>
 #include "../libStringConverter/convert.h"
@@ -97,9 +98,9 @@ bool Win32TaskStatusTracker::dlgFindListCtrlFor(TaskStatusDesc* pDesc, HWND& hLi
 	listIdx = 0;
 	if (hDlg == NULL || pDesc == nullptr)
 		return false;
-	
+
 	auto listCtrls = getListCtrls(hDlg);
-	
+
 	for (size_t i = 0; i < listCtrls.size(); ++i)
 	{
 		HWND hListCtrl = listCtrls[i];
@@ -250,18 +251,18 @@ void Win32TaskStatusTracker::onResize(bool defer)
 	bool retry = false;
 	std::vector<RECT> invalidateRects;
 	auto doMoveWindow = [&deferCtx, &retry, &invalidateRects](HWND hWnd, int x, int y, int w, int h, bool invalidate = false)
-	{
-		if (invalidate)
-			invalidateRects.emplace_back((LONG)x, (LONG)y, (LONG)x + w, (LONG)y + h);
-		if (deferCtx)
 		{
-			deferCtx = DeferWindowPos(deferCtx, hWnd, HWND_TOP, x, y, w, h, SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER);
-			if (!deferCtx)
-				retry = true;
-		}
-		else
-			SetWindowPos(hWnd, HWND_TOP, x, y, w, h, SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER);
-	};
+			if (invalidate)
+				invalidateRects.emplace_back((LONG)x, (LONG)y, (LONG)x + w, (LONG)y + h);
+			if (deferCtx)
+			{
+				deferCtx = DeferWindowPos(deferCtx, hWnd, HWND_TOP, x, y, w, h, SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER);
+				if (!deferCtx)
+					retry = true;
+			}
+			else
+				SetWindowPos(hWnd, HWND_TOP, x, y, w, h, SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER);
+		};
 
 	long fontHeight = 16;
 	long bottomDistance = 7, topDistance = 4;
@@ -319,7 +320,7 @@ void Win32TaskStatusTracker::onResize(bool defer)
 
 	UpdateWindow(hDlg);
 	//Workaround for now (broken labels and buttons occur when resizing).
-	for (RECT &rect : invalidateRects)
+	for (RECT& rect : invalidateRects)
 		InvalidateRect(hDlg, &rect, FALSE);
 }
 INT_PTR CALLBACK Win32TaskStatusTracker::DlgHandler(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
@@ -346,49 +347,49 @@ INT_PTR CALLBACK Win32TaskStatusTracker::DlgHandler(HWND hDlg, UINT message, WPA
 		ret = (INT_PTR)TRUE;
 		break;
 	case WM_INITDIALOG:
+	{
+		SetWindowLongPtr(hDlg, GWLP_USERDATA, lParam);
+		pThis = (Win32TaskStatusTracker*)lParam;
+		pThis->mainPanelSplitter.setSplitterWindow(GetDlgItem(hDlg, IDC_CONTENTSEPARATE));
+		pThis->mainPanelSplitter.handleWin32Message(hDlg, message, wParam, lParam);
+		pThis->hDlg = hDlg;
+
+		pThis->processingSelection = false;
+		pThis->numShownLogEntries = 0;
+
+		ShowWindow(GetDlgItem(hDlg, IDC_EDITSTATUS), SW_HIDE);
+		ShowWindow(GetDlgItem(hDlg, IDC_PROG), SW_HIDE);
+		ShowWindow(GetDlgItem(hDlg, IDC_SDESC), SW_HIDE);
+		EnableWindow(GetDlgItem(hDlg, IDC_CLEARALL), FALSE);
+		EnableWindow(GetDlgItem(hDlg, IDC_CLEAR), FALSE);
+		EnableWindow(GetDlgItem(hDlg, IDC_CANCELTASK), FALSE);
+		for (auto it = pThis->taskList.begin(); it != pThis->taskList.end(); ++it)
 		{
-			SetWindowLongPtr(hDlg, GWLP_USERDATA, lParam);
-			pThis = (Win32TaskStatusTracker*)lParam;
-			pThis->mainPanelSplitter.setSplitterWindow(GetDlgItem(hDlg, IDC_CONTENTSEPARATE));
-			pThis->mainPanelSplitter.handleWin32Message(hDlg, message, wParam, lParam);
-			pThis->hDlg = hDlg;
-
-			pThis->processingSelection = false;
-			pThis->numShownLogEntries = 0;
-
-			ShowWindow(GetDlgItem(hDlg, IDC_EDITSTATUS), SW_HIDE);
-			ShowWindow(GetDlgItem(hDlg, IDC_PROG), SW_HIDE);
-			ShowWindow(GetDlgItem(hDlg, IDC_SDESC), SW_HIDE);
-			EnableWindow(GetDlgItem(hDlg, IDC_CLEARALL), FALSE);
-			EnableWindow(GetDlgItem(hDlg, IDC_CLEAR), FALSE);
-			EnableWindow(GetDlgItem(hDlg, IDC_CANCELTASK), FALSE);
-			for (auto it = pThis->taskList.begin(); it != pThis->taskList.end(); ++it)
-			{
-				if (it->hasResult)
-					it->eraseIfStale = (it->result >= 0);
-				else
-					it->eraseIfStale = true;
-			}
-			pThis->eraseStaleElements();
-			for (auto it = pThis->taskList.begin(); it != pThis->taskList.end(); ++it)
-			{
-				if (it->hasResult)
-					pThis->handleTaskCompletion(it, false);
-				else
-					pThis->mainOnTaskAdd(it);
-			}
-			HWND hListRunning = GetDlgItem(hDlg, IDC_LISTRUNNING);
-			if (ListBox_GetCount(hListRunning) > 0)
-			{
-				if (TaskStatusDesc *pDesc = listCtrlGetItem(hListRunning, 0))
-					pThis->dlgSwitchShownTask(pDesc);
-			}
-
-			ShowWindow(hDlg, SW_SHOW);
-			PostMessage(hDlg, WM_SIZE, 0, 0);
-			ret = (INT_PTR)TRUE;
+			if (it->hasResult)
+				it->eraseIfStale = (it->result >= 0);
+			else
+				it->eraseIfStale = true;
 		}
-		break;
+		pThis->eraseStaleElements();
+		for (auto it = pThis->taskList.begin(); it != pThis->taskList.end(); ++it)
+		{
+			if (it->hasResult)
+				pThis->handleTaskCompletion(it, false);
+			else
+				pThis->mainOnTaskAdd(it);
+		}
+		HWND hListRunning = GetDlgItem(hDlg, IDC_LISTRUNNING);
+		if (ListBox_GetCount(hListRunning) > 0)
+		{
+			if (TaskStatusDesc* pDesc = listCtrlGetItem(hListRunning, 0))
+				pThis->dlgSwitchShownTask(pDesc);
+		}
+
+		ShowWindow(hDlg, SW_SHOW);
+		PostMessage(hDlg, WM_SIZE, 0, 0);
+		ret = (INT_PTR)TRUE;
+	}
+	break;
 	case WM_SIZE:
 		if (pThis)
 		{
@@ -416,7 +417,7 @@ INT_PTR CALLBACK Win32TaskStatusTracker::DlgHandler(HWND hDlg, UINT message, WPA
 			if (pThis)
 			{
 				HWND hListComplete = GetDlgItem(hDlg, IDC_LISTCOMPLETE);
-				
+
 				int iItem = ListBox_GetCurSel(hListComplete);
 				if (iItem != LB_ERR)
 				{
@@ -452,18 +453,18 @@ INT_PTR CALLBACK Win32TaskStatusTracker::DlgHandler(HWND hDlg, UINT message, WPA
 			break;
 		case IDC_LISTRUNNING:
 		case IDC_LISTCOMPLETE:
+		{
+			HWND hList = (HWND)lParam;
+			if (HIWORD(wParam) == LBN_SELCHANGE)
 			{
-				HWND hList = (HWND)lParam;
-				if (HIWORD(wParam) == LBN_SELCHANGE)
-				{
-					auto listCtrls = getListCtrls(hDlg);
-					if (std::find(listCtrls.begin(), listCtrls.end(), hList) == listCtrls.end())
-						break; //Only looking for the task list views.
-					TaskStatusDesc* pDesc = listCtrlGetItem(hList, ListBox_GetCurSel(hList));
-					pThis->dlgSwitchShownTask(pDesc);
-				}
+				auto listCtrls = getListCtrls(hDlg);
+				if (std::find(listCtrls.begin(), listCtrls.end(), hList) == listCtrls.end())
+					break; //Only looking for the task list views.
+				TaskStatusDesc* pDesc = listCtrlGetItem(hList, ListBox_GetCurSel(hList));
+				pThis->dlgSwitchShownTask(pDesc);
 			}
-			break;
+		}
+		break;
 		}
 		break;
 	}
@@ -505,13 +506,13 @@ void Win32TaskStatusTracker::mainOnTaskAdd(std::list<TaskStatusDesc>::iterator l
 	auto nameT = unique_MultiByteToTCHAR(listEntry->name.c_str());
 	int iItem = ListBox_GetCount(hListRunning);
 	ListBox_InsertString(hListRunning, iItem, nameT.get());
-	ListBox_SetItemData(hListRunning, iItem, (LPARAM)&*listEntry);
+	ListBox_SetItemData(hListRunning, iItem, (LPARAM) & *listEntry);
 	listEntry->auxData = (uintptr_t)iItem;
 
 	runningTaskNameExtents.push_back(GetTextExtent(hListRunning, nameT.get()));
 	assert(runningTaskNameExtents.size() == ListBox_GetCount(hListRunning));
 	ListBox_SetHorizontalExtent(hListRunning, std::max(runningTaskNameExtents.back(), ListBox_GetHorizontalExtent(hListRunning)));
-	
+
 	EnableWindow(GetDlgItem(hDlg, IDC_CLEARALL), TRUE);
 	bool hasAnySelection = false;
 	auto listCtrls = getListCtrls(hDlg);
@@ -644,7 +645,7 @@ void Win32TaskStatusTracker::handleTaskCompletion(std::list<TaskStatusDesc>::ite
 		ListBox_DeleteString(hListCtrl, listIdx);
 		for (int i = listIdx; i < ListBox_GetCount(hListCtrl); ++i)
 		{
-			TaskStatusDesc *pDesc = reinterpret_cast<TaskStatusDesc*>(ListBox_GetItemData(hListCtrl, i));
+			TaskStatusDesc* pDesc = reinterpret_cast<TaskStatusDesc*>(ListBox_GetItemData(hListCtrl, i));
 			if (pDesc == nullptr)
 				continue;
 			assert(pDesc->auxData == i + 1);
@@ -667,7 +668,7 @@ void Win32TaskStatusTracker::handleTaskCompletion(std::list<TaskStatusDesc>::ite
 
 	int iItem = ListBox_GetCount(hListComplete);
 	ListBox_InsertString(hListComplete, iItem, nameT.get());
-	ListBox_SetItemData(hListComplete, iItem, (LPARAM)&*listEntry);
+	ListBox_SetItemData(hListComplete, iItem, (LPARAM) & *listEntry);
 	listEntry->auxData = (uintptr_t)iItem;
 
 	completeTaskNameExtents.push_back(GetTextExtent(hListComplete, nameT.get()));
@@ -751,7 +752,7 @@ void Win32TaskStatusTracker::mainOnTotalProgressUpdate()
 	else
 	{
 		SendMessage(hMainWndProgress, PBM_SETSTATE, (WPARAM)PBST_NORMAL, (LPARAM)0);
-		
+
 		unsigned int range = 10000;
 		unsigned int progress = std::min(static_cast<unsigned int>(totalProgress * range), range);
 		SendMessage(hMainWndProgress, PBM_SETMARQUEE, (WPARAM)FALSE, (LPARAM)0);
@@ -792,8 +793,8 @@ void Win32TaskStatusTracker::mainOnProgressMessageUpdate()
 	{
 		auto numThreads = appContext.taskManager.getNumThreadsWorking();
 		std::string fullDesc = std::format("({} task{}, {} thread{} working) {}",
-			numTasks, (numTasks!=1) ? "s" : "",
-			numThreads, (numThreads!=1) ? "s" : "",
+			numTasks, (numTasks != 1) ? "s" : "",
+			numThreads, (numThreads != 1) ? "s" : "",
 			latestProgressMessage);
 		auto lastTaskDescT = unique_MultiByteToTCHAR(fullDesc.c_str());
 		Static_SetText(hMainWndStatusText, lastTaskDescT.get());
