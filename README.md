@@ -1,4 +1,15 @@
 # Asset Bundle Extractor
+
+## Wii U Unity 4.x compatibility fork:
+- Fixes saving/rebuilding big-endian Wii U asset bundles
+- Fixes UnityRaw/UnityWeb bundle header/list writing issues.
+- Adds modern MSVC compatibility fixes for missing C++ standard headers.
+- Pretty sure this breaks little endian asset bundles so use a regular build for any other tasks.
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
 .assets and AssetBundle editor.  
 Not affiliated with Unity Technologies.
 
